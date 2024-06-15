@@ -7,7 +7,7 @@ services:
         context: .
         dockerfile: ./dockerfiles/db/Dockerfile
     volumes:
-        - ./dockerfiles/db/setup.sql:/docker-entrypoint-initdb.d/setup.sql
+        - ./mike/setup.sql:/docker-entrypoint-initdb.d/setup.sql
     ports:
       - 5406:5432
     command:
