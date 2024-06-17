@@ -137,7 +137,7 @@ create table blog_post(
     title varchar(255) not null,
     body varchar(10000),
     tags TEXT[],
-    location GEOGRAPHY(geometry, 4326) not null default ST_GeographyFromText('POINT(0 0)'),
+    location GEOGRAPHY(geometry, 4326) not null default ST_GeomFromGeoJSON(json_build_object('type', 'Point', 'coordinates', ARRAY[0,0]))::geography,
     status blog_post_status not null,
     created_at timestamp with time zone not null default (timezone('utc', now()))
 );
