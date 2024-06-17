@@ -47,17 +47,23 @@ create extension if not exists citext;
 create domain emailaddr as citext
   check ( value ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$' );
 -- Geography, SRID 4326 with GEOJSON default representation
--- create domain json_geography as GEOGRAPHY(geometry, 4326);
+-- json(geography) does all the implicit casting to RENDER geometry columns in Queries
 create or replace function json(geography) returns json as $$
-  select ST_AsGeoJson($1)::json;
+  select ($1::geometry)::json;
 $$ language sql immutable;
 create cast (geography AS json) with function json(geography) as implicit;
 
-create or replace function geography(json) RETURNS geography AS $$
-  -- here we reuse the previous app_uuid(text) function
-  select ST_GeomFromGeoJSON($1::text)::geography;
+-- geography(json) WOULD implicitly convert incoming json values to geography types IF pg_graphql ever allows objects as input for JSON scalars
+create or replace function geography(json) returns geography as $$
+  select ST_GeomFromGeoJSON($1::json)::geography;
 $$ language sql immutable;
-CREATE CAST (json AS geography) WITH FUNCTION geography(json) AS IMPLICIT;
+create cast (json AS geography) with function geography(json) as implicit;
+
+-- geography(text) currently converts incoming stringified json representations of a geography object during an incoming Mutation
+create or replace function geography(text) returns geography as $$
+  select ST_GeomFromGeoJSON($1::json)::geography;
+$$ language sql immutable;
+create cast (text AS geography) with function geography(text) as implicit;
 -- End Global Types
 
 -- GraphQL Entrypoint
@@ -145,6 +151,22 @@ grant select(id), select(blog_id), select(title), select(body), select(tags), se
     update(title), update(body), update(tags), update(location), update(status)
     on blog_post to anon;
 -- End BLOG POSTS
+-- You can create a blog_post with this graphql mutation payload:
+-- {
+--   "blogPosts":[
+--     {
+--       "body": "Content for New Post in A Blog 3",
+--       "tags": [
+--         "travel",
+--         "adventure"
+--       ],
+--       "title": "New Post in A Blog 3",
+--       "blogId": "0190269c-4f93-717d-9c74-3eabd6b9de7e",
+--       "status": "PENDING",
+--       "location": "{\"type\": \"Point\",\"coordinates\": [2,2]}"
+--     }
+--   ]
+-- }
 
 
 -- DEMO DATA BELOW
