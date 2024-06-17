@@ -130,14 +130,14 @@ grant select(id), select(owner_id), select(name), select(description), select(cr
 -- BlogPost Types
 create type blog_post_status as enum ('PENDING', 'RELEASED');
 -- BlogPost Model
--- geojson geometry generated always as (location::geometry) stored,
+-- geojson geography generated always as (location::geography) stored,
 create table blog_post(
     id uuid not null default uuid_generate_v7() primary key,
     blog_id uuid not null references blog(id) on delete cascade,
     title varchar(255) not null,
     body varchar(10000),
     tags TEXT[],
-    location GEOGRAPHY(geometry, 4326) not null default ST_GeomFromGeoJSON(json_build_object('type', 'Point', 'coordinates', ARRAY[0,0]))::geography,
+    location geometry(geometry, 4326) not null default ST_GeomFromGeoJSON(json_build_object('type', 'Point', 'coordinates', array[0,0])),
     status blog_post_status not null,
     created_at timestamp with time zone not null default (timezone('utc', now()))
 );
