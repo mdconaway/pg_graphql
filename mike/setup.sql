@@ -1,3 +1,4 @@
+create extension if not exists postgis;
 create extension if not exists pg_graphql;
 
 -- Default role / privileges
@@ -18,33 +19,45 @@ alter default privileges in schema graphql grant all on sequences to anon;
 
 -- Global Types
 -- UUID v7
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE OR REPLACE FUNCTION
+create extension if not exists pgcrypto;
+create or replace function
   uuid_generate_v7()
-RETURNS
+returns
   uuid
-LANGUAGE
+language
   plpgsql
-PARALLEL SAFE
-AS $$
-  DECLARE
+parallel safe
+as $$
+  declare
     -- The current UNIX timestamp in milliseconds
-    unix_time_ms CONSTANT bytea NOT NULL DEFAULT substring(int8send((extract(epoch FROM clock_timestamp()) * 1000)::bigint) from 3);
+    unix_time_ms CONSTANT bytea not null default substring(int8send((extract(epoch FROM clock_timestamp()) * 1000)::bigint) from 3);
     -- The buffer used to create the UUID, starting with the UNIX timestamp and followed by random bytes
-    buffer                bytea NOT NULL DEFAULT unix_time_ms || gen_random_bytes(10);
-  BEGIN
+    buffer                bytea not null default unix_time_ms || gen_random_bytes(10);
+  begin
     -- Set most significant 4 bits of 7th byte to 7 (for UUID v7), keeping the last 4 bits unchanged
     buffer = set_byte(buffer, 6, (b'0111' || get_byte(buffer, 6)::bit(4))::bit(8)::int);
     -- Set most significant 2 bits of 9th byte to 2 (the UUID variant specified in RFC 4122), keeping the last 6 bits unchanged
     buffer = set_byte(buffer, 8, (b'10'   || get_byte(buffer, 8)::bit(6))::bit(8)::int);
-    RETURN encode(buffer, 'hex');
-  END
+    return encode(buffer, 'hex');
+  end
 $$
 ;
 -- Email & Validator
-CREATE EXTENSION citext;
-CREATE DOMAIN emailaddr AS citext
-  CHECK ( value ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$' );
+create extension if not exists citext;
+create domain emailaddr as citext
+  check ( value ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$' );
+-- Geography, SRID 4326 with GEOJSON default representation
+-- create domain json_geography as GEOGRAPHY(geometry, 4326);
+create or replace function json(geography) returns json as $$
+  select ST_AsGeoJson($1)::json;
+$$ language sql immutable;
+create cast (geography AS json) with function json(geography) as implicit;
+
+create or replace function geography(json) RETURNS geography AS $$
+  -- here we reuse the previous app_uuid(text) function
+  select ST_GeomFromGeoJSON($1::text)::geography;
+$$ language sql immutable;
+CREATE CAST (json AS geography) WITH FUNCTION geography(json) AS IMPLICIT;
 -- End Global Types
 
 -- GraphQL Entrypoint
@@ -111,22 +124,25 @@ grant select(id), select(owner_id), select(name), select(description), select(cr
 -- BlogPost Types
 create type blog_post_status as enum ('PENDING', 'RELEASED');
 -- BlogPost Model
+-- geojson geometry generated always as (location::geometry) stored,
 create table blog_post(
     id uuid not null default uuid_generate_v7() primary key,
     blog_id uuid not null references blog(id) on delete cascade,
     title varchar(255) not null,
     body varchar(10000),
     tags TEXT[],
+    location GEOGRAPHY(geometry, 4326) not null default ST_GeographyFromText('POINT(0 0)'),
     status blog_post_status not null,
     created_at timestamp with time zone not null default (timezone('utc', now()))
 );
+create index idx_blog_post_location_gist on blog_post using gist(location);
 -- BlogPost Config
 comment on table blog_post is e'@graphql({"totalCount": {"enabled": true}})';
 -- BlogPost Permissions
 revoke all on table blog_post from anon;
-grant select(id), select(blog_id), select(title), select(body), select(tags), select(status), select(created_at),
-    insert(blog_id), insert(title), insert(body), insert(tags), insert(status),
-    update(title), update(body), update(tags), update(status)
+grant select(id), select(blog_id), select(title), select(body), select(tags), select(location), select(status), select(created_at),
+    insert(blog_id), insert(title), insert(body), insert(tags), insert(location), insert(status),
+    update(title), update(body), update(tags), update(location), update(status)
     on blog_post to anon;
 -- End BLOG POSTS
 

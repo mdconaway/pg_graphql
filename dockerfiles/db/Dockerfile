@@ -9,7 +9,8 @@ ENV build_deps ca-certificates \
   postgresql-server-dev-${PG_MAJOR} \
   curl \
   libreadline6-dev \
-  zlib1g-dev
+  zlib1g-dev \ 
+  gnupg
 
 
 RUN apt-get install -y --no-install-recommends $build_deps pkg-config cmake
@@ -36,5 +37,10 @@ USER root
 
 COPY . .
 RUN cargo pgrx install
+RUN apt-get install -y lsb-release && \
+  curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/apt.postgresql.org.gpg >/dev/null && \
+  sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' && \
+  apt-get update -y && \
+  apt-get install -y postgresql-${PG_MAJOR}-postgis-3 postgis
 
 USER postgres
