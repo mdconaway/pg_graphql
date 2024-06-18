@@ -10,6 +10,7 @@ nix/
 node_modules/
 results/
 venv/
+.venv
 *.md
 *.md
 *.py

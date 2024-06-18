@@ -9,7 +9,7 @@ ENV build_deps ca-certificates \
   postgresql-server-dev-${PG_MAJOR} \
   curl \
   libreadline6-dev \
-  zlib1g-dev \ 
+  zlib1g-dev \
   gnupg
 
 
@@ -35,7 +35,14 @@ RUN cargo pgrx init --pg${PG_MAJOR} $(which pg_config)
 
 USER root
 
-COPY . .
+COPY .cargo .cargo/
+COPY .ci .ci/
+COPY bin ./bin
+COPY sql ./sql
+COPY src ./src
+COPY test ./test
+COPY Cargo.lock Cargo.toml LICENSE pg_graphql.control ./
+
 RUN cargo pgrx install
 RUN apt-get install -y lsb-release && \
   curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | tee /etc/apt/trusted.gpg.d/apt.postgresql.org.gpg >/dev/null && \
