@@ -23,32 +23,9 @@ services:
       timeout: 10s
       retries: 5
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: graphqldb
-
-  rest:
-    container_name: pg_postgrest
-    image: postgrest/postgrest:v10.0.0
-    restart: unless-stopped
-    ports:
-      - 3001:3000
-    environment:
-      PGRST_DB_URI: postgres://postgres:password@db:${POSTGRES_PORT}/graphqldb
-      PGRST_DB_SCHEMA: public
-      PGRST_DB_ANON_ROLE: anon
-    depends_on:
-      - db
-
-  graphiql:
-    container_name: pg_graphiql
-    image: nginx
-    volumes:
-      - ./dockerfiles/graphiql:/usr/share/nginx/html
-    ports:
-      - 4000:80
-    depends_on:
-      - rest
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
 
   service:
     container_name: pg_service

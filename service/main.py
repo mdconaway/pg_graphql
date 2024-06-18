@@ -2,6 +2,7 @@ from typing import Annotated
 from json import dumps
 from logging import getLogger
 from fastapi import Depends, APIRouter
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi_offline import FastAPIOffline
 from sqlalchemy import text
@@ -10,6 +11,7 @@ from service.interfaces.schemas import GraphQLRequest
 from service.middleware.requestlogger import RequestLogger
 from service.adapters.postgres import postgresql
 from service.config.general import general
+from service.config.adapters import adapters
 
 logger = getLogger(__name__)
 
@@ -33,7 +35,13 @@ router = APIRouter(prefix="/graphql")
 
 async def get_session():
     async with postgresql.getSession() as session:
-        yield session
+        await session.execute(text(f"SET ROLE {adapters.DATABASE_ROLE};"))
+        try:
+            yield session
+        except Exception as e:
+            raise e
+        finally:
+            await session.execute(text(f"RESET ROLE;"))
 
 
 @router.post("")
@@ -67,3 +75,5 @@ async def grapqhl_request(
 
 
 app.include_router(router)
+app.mount("/", StaticFiles(directory="service/static", html=True), name="static_root")
+app.mount("", StaticFiles(directory="service/static", html=True), name="static_blank")

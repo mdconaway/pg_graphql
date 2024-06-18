@@ -15,6 +15,7 @@ class Adapters(Base):
     DATABASE_POOL_SIZE: int
     DATABASE_MAX_OVERFLOW: int
     DATABASE_URI: str | None = None
+    DATABASE_ROLE: str = "app_user"
 
     @model_validator(mode="after")
     def assemble_db_connection(self):

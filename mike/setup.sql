@@ -2,19 +2,19 @@ create extension if not exists postgis;
 create extension if not exists pg_graphql;
 
 -- Default role / privileges
-create role anon;
+create role app_user;
 
-grant usage on schema public to anon;
-alter default privileges in schema public grant all on tables to anon;
-alter default privileges in schema public grant all on functions to anon;
-alter default privileges in schema public grant all on sequences to anon;
+grant usage on schema public to app_user;
+alter default privileges in schema public grant all on tables to app_user;
+alter default privileges in schema public grant all on functions to app_user;
+alter default privileges in schema public grant all on sequences to app_user;
 
-grant usage on schema graphql to anon;
-grant all on function graphql.resolve to anon;
+grant usage on schema graphql to app_user;
+grant all on function graphql.resolve to app_user;
 
-alter default privileges in schema graphql grant all on tables to anon;
-alter default privileges in schema graphql grant all on functions to anon;
-alter default privileges in schema graphql grant all on sequences to anon;
+alter default privileges in schema graphql grant all on tables to app_user;
+alter default privileges in schema graphql grant all on functions to app_user;
+alter default privileges in schema graphql grant all on sequences to app_user;
 -- End Default role / privileges
 
 -- Global Types
@@ -112,11 +112,11 @@ create trigger account_updated_at_stamp before update
     on account for each row execute procedure
     updated_at_stamp();
 -- Accounts Permissions
-revoke all on table public.account from anon;
-grant select(id), select(email), select(created_at),
+revoke all on table public.account from app_user;
+grant select(id), select(email), select(created_at), select(updated_at),
     insert(email),
     update(email)
-    on public.account to anon;
+    on public.account to app_user;
 -- End ACCOUNTS
 
 
@@ -137,11 +137,11 @@ create trigger blog_updated_at_stamp before update
     on blog for each row execute procedure
     updated_at_stamp();
 -- Blog Permissions
-revoke all on table blog from anon;
-grant select(id), select(owner_id), select(name), select(description), select(created_at),
+revoke all on table blog from app_user;
+grant select(id), select(owner_id), select(name), select(description), select(created_at), select(updated_at),
     insert(owner_id), insert(name), insert(description),
     update(name), update(description)
-    on blog to anon;
+    on blog to app_user;
 -- END BLOGS
 
 -- BLOG POSTS
@@ -168,11 +168,11 @@ create trigger blog_post_updated_at_stamp before update
     on blog_post for each row execute procedure
     updated_at_stamp();
 -- BlogPost Permissions
-revoke all on table blog_post from anon;
-grant select(id), select(blog_id), select(title), select(body), select(tags), select(location), select(status), select(created_at),
+revoke all on table blog_post from app_user;
+grant select(id), select(blog_id), select(title), select(body), select(tags), select(location), select(status), select(created_at), select(updated_at),
     insert(blog_id), insert(title), insert(body), insert(tags), insert(location), insert(status),
     update(title), update(body), update(tags), update(location), update(status)
-    on blog_post to anon;
+    on blog_post to app_user;
 -- End BLOG POSTS
 -- You can create a blog_post with this graphql mutation payload:
 -- {

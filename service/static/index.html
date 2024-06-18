@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>GraphiQL - FastAPI + pg_graphql</title>
+    <!-- https://unpkg.com/graphiql/graphiql.min.css -->
+    <link rel="stylesheet" href="css/graphiql.min.css" />
+  </head>
+  <body style="margin: 0">
+    <div id="graphiql" style="height: 100vh"></div>
+    <!-- https://unpkg.com/react/umd/react.production.min.js -->
+    <script src="js/react.production.min.js"></script>
+    <!-- https://unpkg.com/react-dom/umd/react-dom.production.min.js -->
+    <script src="js/react-dom.production.min.js"></script>
+    <!-- https://unpkg.com/graphiql/graphiql.min.js -->
+    <script src="js/graphiql.min.js"></script>
+    <script>
+      const fetcher = GraphiQL.createFetcher({
+        url: "/graphql",
+      });
+      ReactDOM.render(
+        React.createElement(GraphiQL, { fetcher: fetcher }),
+        document.getElementById("graphiql")
+      );
+    </script>
+  </body>
+</html>
