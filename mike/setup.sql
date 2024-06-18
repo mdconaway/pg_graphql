@@ -64,6 +64,14 @@ create or replace function geography(text) returns geography as $$
   select ST_GeomFromGeoJSON($1::json)::geography;
 $$ language sql immutable;
 create cast (text AS geography) with function geography(text) as implicit;
+-- update_at timestamp
+create or replace function updated_at_stamp()
+returns trigger as $$
+begin
+   new.updated_at = timezone('utc', now());
+   return new;
+end;
+$$ language 'plpgsql';
 -- End Global Types
 
 -- GraphQL Entrypoint
@@ -94,15 +102,20 @@ comment on schema public is '@graphql({"inflect_names": true, "max_rows": 100})'
 create table account(
     id uuid not null default uuid_generate_v7() primary key,
     email emailaddr not null unique,
-    created_at timestamp with time zone not null default (timezone('utc', now()))
+    created_at timestamp with time zone not null default (timezone('utc', now())),
+    updated_at timestamp with time zone not null default (timezone('utc', now()))
 );
 -- Accounts Config
 comment on table public.account is e'@graphql({"totalCount": {"enabled": true}})';
+-- Accounts Triggers
+create trigger account_updated_at_stamp before update
+    on account for each row execute procedure
+    updated_at_stamp();
 -- Accounts Permissions
 revoke all on table public.account from anon;
-grant select(id), select(email), select(created_at), 
-    insert(email), 
-    update(email) 
+grant select(id), select(email), select(created_at),
+    insert(email),
+    update(email)
     on public.account to anon;
 -- End ACCOUNTS
 
@@ -114,15 +127,20 @@ create table blog(
     owner_id uuid not null references account(id) on delete cascade,
     name varchar(255) not null,
     description varchar(255),
-    created_at timestamp with time zone not null default (timezone('utc', now()))
+    created_at timestamp with time zone not null default (timezone('utc', now())),
+    updated_at timestamp with time zone not null default (timezone('utc', now()))
 );
 -- Blog Config
 comment on table blog is e'@graphql({"totalCount": {"enabled": true}})';
+-- Blog Triggers
+create trigger blog_updated_at_stamp before update
+    on blog for each row execute procedure
+    updated_at_stamp();
 -- Blog Permissions
 revoke all on table blog from anon;
-grant select(id), select(owner_id), select(name), select(description), select(created_at), 
-    insert(owner_id), insert(name), insert(description), 
-    update(name), update(description) 
+grant select(id), select(owner_id), select(name), select(description), select(created_at),
+    insert(owner_id), insert(name), insert(description),
+    update(name), update(description)
     on blog to anon;
 -- END BLOGS
 
@@ -139,11 +157,16 @@ create table blog_post(
     tags TEXT[],
     location geometry(geometry, 4326) not null default ST_GeomFromGeoJSON(json_build_object('type', 'Point', 'coordinates', array[0,0])),
     status blog_post_status not null,
-    created_at timestamp with time zone not null default (timezone('utc', now()))
+    created_at timestamp with time zone not null default (timezone('utc', now())),
+    updated_at timestamp with time zone not null default (timezone('utc', now()))
 );
 create index idx_blog_post_location_gist on blog_post using gist(location);
 -- BlogPost Config
 comment on table blog_post is e'@graphql({"totalCount": {"enabled": true}})';
+-- BlogPost Triggers
+create trigger blog_post_updated_at_stamp before update
+    on blog_post for each row execute procedure
+    updated_at_stamp();
 -- BlogPost Permissions
 revoke all on table blog_post from anon;
 grant select(id), select(blog_id), select(title), select(body), select(tags), select(location), select(status), select(created_at),
