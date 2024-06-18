@@ -1,10 +1,16 @@
-from typing import Annotated
+from typing import Any, Annotated
 from json import dumps
+from io import BytesIO
 from fastapi import Request, Depends, APIRouter
+from fastapi.responses import StreamingResponse
+from graphql import get_introspection_query, build_client_schema, print_schema
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from service.interfaces.schemas import GraphQLRequest
-from service.adapters.postgres import get_graphql_user_session
+from service.adapters.postgres import (
+    get_graphql_user_session,
+    get_graphql_admin_session,
+)
 from service.policies.become_first_account import become_first_account
 from service.policies.dump_session_attributes import dump_session_attributes
 
@@ -43,3 +49,25 @@ async def grapqhl_request(
         )
     )
     return result.scalar_one()
+
+
+@router.get("")
+async def graphql_schema(
+    session: Annotated[AsyncSession, Depends(get_graphql_admin_session)]
+):
+    query_intros = get_introspection_query(descriptions=True)
+    result = await session.execute(
+        text(
+            f"""
+            select graphql.resolve(
+                (:query)::text
+            );
+        """
+        ).bindparams(query=query_intros)
+    )
+    intros_result: dict[str, Any] = result.scalar_one()
+    client_schema = build_client_schema(intros_result.get("data", None))
+    headers = {"Content-Disposition": 'attachment; filename="schema.gql"'}
+    return StreamingResponse(
+        BytesIO(print_schema(client_schema).encode()), headers=headers
+    )

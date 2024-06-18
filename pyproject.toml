@@ -15,6 +15,7 @@ fastapi-offline = "^1.7.1"
 pydantic = "^2.7.4"
 pydantic-settings = "^2.3.3"
 sqlalchemy = {extras = ["asyncio"], version ="^2.0.30"}
+graphql-core = "^3.2.3"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.3.0"
