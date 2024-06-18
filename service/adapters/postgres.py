@@ -77,3 +77,14 @@ postgresql = PostgresqlAdapter(
     pool_pre_ping=True,
     echo=adapters.DATABASE_ECHO,
 )
+
+
+async def get_graphql_session():
+    async with postgresql.getSession() as session:
+        await session.execute(text(f"SET ROLE {adapters.DATABASE_ROLE};"))
+        try:
+            yield session
+        except:
+            raise
+        finally:
+            await session.execute(text(f"RESET ROLE;"))
