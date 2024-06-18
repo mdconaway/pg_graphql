@@ -1,10 +1,10 @@
--- Activate extenions
+-- EXTENSIONS
 -- These must always come first in your first-time db init!
 create extension if not exists postgis;
 create extension if not exists pg_graphql;
--- End Activate extension
+-- END EXTENSIONS
 
--- Default role / privileges
+-- ROLES / PRIVILEGES
 create role app_user;
 
 grant usage on schema public to app_user;
@@ -18,9 +18,9 @@ grant all on function graphql.resolve to app_user;
 alter default privileges in schema graphql grant all on tables to app_user;
 alter default privileges in schema graphql grant all on functions to app_user;
 alter default privileges in schema graphql grant all on sequences to app_user;
--- End Default role / privileges
+-- END ROLES / PRIVILEGES
 
--- GraphQL Entrypoint
+-- GRAPHQL ENTRYPOINT
 create function graphql(
     "operationName" text default null,
     query text default null,
@@ -37,9 +37,9 @@ as $$
         extensions := extensions
     );
 $$;
--- End GraphQL Entrypoint
+-- END GRAPHQL ENTRYPOINT
 
--- Global Types
+-- GLOBAL TYPES
 -- UUID v7
 create extension if not exists pgcrypto;
 create or replace function
@@ -62,8 +62,7 @@ as $$
     buffer = set_byte(buffer, 8, (b'10'   || get_byte(buffer, 8)::bit(6))::bit(8)::int);
     return encode(buffer, 'hex');
   end
-$$
-;
+$$;
 -- Email & Validator
 create extension if not exists citext;
 create domain emailaddr as citext
@@ -94,11 +93,12 @@ begin
    return new;
 end;
 $$ language 'plpgsql';
--- End Global Types
+-- END GLOBAL TYPES
 
--- Global Settings
+-- GLOBAL SETTINGS
 comment on schema public is '@graphql({"inflect_names": true, "max_rows": 100})';
--- End Global Settings
+-- END GLOBAL SETTINGS
+
 
 -- ACCOUNTS
 -- Accounts Model
@@ -109,18 +109,41 @@ create table account(
     updated_at timestamp with time zone not null default (timezone('utc', now()))
 );
 -- Accounts Config
-comment on table public.account is e'@graphql({"totalCount": {"enabled": true}})';
+comment on table account is e'@graphql({"totalCount": {"enabled": true}})';
 -- Accounts Triggers
 create trigger account_updated_at_stamp before update
     on account for each row execute procedure
     updated_at_stamp();
--- Accounts Permissions
-revoke all on table public.account from app_user;
+-- Accounts Column Permissions
+revoke all on table account from app_user;
 grant select(id), select(email), select(created_at), select(updated_at),
     insert(email),
-    update(email)
-    on public.account to app_user;
--- End ACCOUNTS
+    update(email),
+    delete
+    on account to app_user;
+-- Accounts Row Level Policies
+-- All rows readable
+create policy account_readable
+on account for select
+using (true);
+-- Anyone can register a new account
+create policy account_insertable
+on account for insert
+with check(true);
+-- Restrict what a user can update
+-- UPDATE policies accept both a USING expression and a WITH CHECK expression. The USING expression determines which records the UPDATE command will see to operate against, while the WITH CHECK expression defines which modified rows are allowed to be stored back into the relation.
+create policy account_updateable
+on account for update
+to app_user
+using (id = uuid(current_setting('auth.session.id')))
+with check (id = uuid(current_setting('auth.session.id')));
+-- Restrict what a user can delete
+create policy account_deleteable
+on account for update
+to app_user
+using (id = uuid(current_setting('auth.session.id')));
+alter table account enable row level security;
+-- END ACCOUNTS
 
 
 -- BLOGS
@@ -147,6 +170,7 @@ grant select(id), select(owner_id), select(name), select(description), select(cr
     on blog to app_user;
 -- END BLOGS
 
+
 -- BLOG POSTS
 -- BlogPost Types
 create type blog_post_status as enum ('PENDING', 'RELEASED');
@@ -156,8 +180,8 @@ create table blog_post(
     id uuid not null default uuid_generate_v7() primary key,
     blog_id uuid not null references blog(id) on delete cascade,
     title varchar(255) not null,
-    body varchar(10000),
-    tags TEXT[],
+    body text,
+    tags text[],
     location geometry(geometry, 4326) not null default ST_GeomFromGeoJSON(json_build_object('type', 'Point', 'coordinates', array[0,0])),
     status blog_post_status not null,
     created_at timestamp with time zone not null default (timezone('utc', now())),
@@ -176,7 +200,6 @@ grant select(id), select(blog_id), select(title), select(body), select(tags), se
     insert(blog_id), insert(title), insert(body), insert(tags), insert(location), insert(status),
     update(title), update(body), update(tags), update(location), update(status)
     on blog_post to app_user;
--- End BLOG POSTS
 -- You can create a blog_post with this graphql mutation payload:
 -- {
 --   "blogPosts":[
@@ -193,11 +216,12 @@ grant select(id), select(blog_id), select(title), select(body), select(tags), se
 --     }
 --   ]
 -- }
+-- END BLOG POSTS
 
 
--- DEMO DATA BELOW
+-- SEED DATA
 -- 5 Accounts
-insert into public.account(email)
+insert into account(email)
 values
     ('aardvark@x.com'),
     ('bat@x.com'),
@@ -205,6 +229,7 @@ values
     ('dog@x.com'),
     ('elephant@x.com');
 
+-- 4 Blogs
 insert into blog(owner_id, name, description)
 values
     ((select id from account where email ilike 'a%'), 'A: Blog 1', 'a desc1'),
@@ -212,6 +237,7 @@ values
     ((select id from account where email ilike 'a%'), 'A: Blog 3', 'a desc3'),
     ((select id from account where email ilike 'b%'), 'B: Blog 3', 'b desc1');
 
+-- 7 Blog Posts
 insert into blog_post (blog_id, title, body, tags, status)
 values
     ((SELECT id FROM blog WHERE name = 'A: Blog 1'), 'Post 1 in A Blog 1', 'Content for post 1 in A Blog 1', '{"tech", "update"}', 'RELEASED'),
@@ -221,3 +247,4 @@ values
     ((SELECT id FROM blog WHERE name = 'A: Blog 3'), 'Post 1 in A Blog 3', 'Content for post 1 in A Blog 3', '{"travel", "adventure"}', 'PENDING'),
     ((SELECT id FROM blog WHERE name = 'B: Blog 3'), 'Post 1 in B Blog 3', 'Content for post 1 in B Blog 3', '{"tech", "review"}', 'RELEASED'),
     ((SELECT id FROM blog WHERE name = 'B: Blog 3'), 'Post 2 in B Blog 3', 'Content for post 2 in B Blog 3', '{"coding", "tutorial"}', 'PENDING');
+-- END SEED DATA

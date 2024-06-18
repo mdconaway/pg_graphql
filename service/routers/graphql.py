@@ -1,23 +1,30 @@
 from typing import Annotated
 from json import dumps
-from fastapi import Depends, APIRouter
+from fastapi import Request, Depends, APIRouter
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio.session import AsyncSession
 from service.interfaces.schemas import GraphQLRequest
-from service.adapters.postgres import get_graphql_session
+from service.adapters.postgres import get_graphql_user_session
+from service.policies.become_first_account import become_first_account
+from service.policies.dump_session_attributes import dump_session_attributes
 
 
 router = APIRouter(prefix="/graphql")
 
 
-@router.post("")
+@router.post("", dependencies=[Depends(become_first_account)])
 async def grapqhl_request(
-    body: GraphQLRequest, session: Annotated[AsyncSession, Depends(get_graphql_session)]
+    request: Request,
+    body: GraphQLRequest,
+    session: Annotated[AsyncSession, Depends(get_graphql_user_session)],
 ):
     query = body.query
     operationName = body.operationName if body.operationName else None
     variables = f"{dumps(body.variables)}" if body.variables else None
     extensions = f"{dumps(body.extensions)}" if body.extensions else None
+    # Session-like setup
+    await dump_session_attributes(request=request, session=session)
+    # End session-like setup
     result = await session.execute(
         text(
             f"""
@@ -35,4 +42,4 @@ async def grapqhl_request(
             extensions=extensions,
         )
     )
-    return result.scalar_one_or_none()
+    return result.scalar_one()

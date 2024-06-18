@@ -19,6 +19,7 @@ class Adapters(Base):
 
     @model_validator(mode="after")
     def assemble_db_connection(self):
+        self.DATABASE_ROLE = self.DATABASE_ROLE.strip().replace(" ", "")
         if self.DATABASE_URI is not None:
             return self
         self.DATABASE_URI = str(

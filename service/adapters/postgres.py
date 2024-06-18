@@ -79,7 +79,8 @@ postgresql = PostgresqlAdapter(
 )
 
 
-async def get_graphql_session():
+# This will force an app_user into all of the various table policies
+async def get_graphql_user_session():
     async with postgresql.getSession() as session:
         await session.execute(text(f"SET ROLE {adapters.DATABASE_ROLE};"))
         try:
@@ -88,3 +89,10 @@ async def get_graphql_session():
             raise
         finally:
             await session.execute(text(f"RESET ROLE;"))
+            await session.execute(text(f"RESET ALL;"))
+
+
+# This will allow the server to do WHATEVER IT WANTS with the database. BE CAREFUL
+async def get_graphql_admin_session():
+    async with postgresql.getSession() as session:
+        yield session
