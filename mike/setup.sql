@@ -1,5 +1,8 @@
+-- Activate extenions
+-- These must always come first in your first-time db init!
 create extension if not exists postgis;
 create extension if not exists pg_graphql;
+-- End Activate extension
 
 -- Default role / privileges
 create role app_user;
@@ -16,6 +19,25 @@ alter default privileges in schema graphql grant all on tables to app_user;
 alter default privileges in schema graphql grant all on functions to app_user;
 alter default privileges in schema graphql grant all on sequences to app_user;
 -- End Default role / privileges
+
+-- GraphQL Entrypoint
+create function graphql(
+    "operationName" text default null,
+    query text default null,
+    variables jsonb default null,
+    extensions jsonb default null
+)
+    returns jsonb
+    language sql
+as $$
+    select graphql.resolve(
+        query := query,
+        variables := coalesce(variables, '{}'),
+        "operationName" := "operationName",
+        extensions := extensions
+    );
+$$;
+-- End GraphQL Entrypoint
 
 -- Global Types
 -- UUID v7
@@ -46,24 +68,24 @@ $$
 create extension if not exists citext;
 create domain emailaddr as citext
   check ( value ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$' );
+
 -- Geography, SRID 4326 with GEOJSON default representation
 -- json(geography) does all the implicit casting to RENDER geometry columns in Queries
 create or replace function json(geography) returns json as $$
   select ($1::geometry)::json;
 $$ language sql immutable;
 create cast (geography AS json) with function json(geography) as implicit;
-
 -- geography(json) WOULD implicitly convert incoming json values to geography types IF pg_graphql ever allows objects as input for JSON scalars
 create or replace function geography(json) returns geography as $$
   select ST_GeomFromGeoJSON($1::json)::geography;
 $$ language sql immutable;
 create cast (json AS geography) with function geography(json) as implicit;
-
 -- geography(text) currently converts incoming stringified json representations of a geography object during an incoming Mutation
 create or replace function geography(text) returns geography as $$
   select ST_GeomFromGeoJSON($1::json)::geography;
 $$ language sql immutable;
 create cast (text AS geography) with function geography(text) as implicit;
+
 -- update_at timestamp
 create or replace function updated_at_stamp()
 returns trigger as $$
@@ -73,25 +95,6 @@ begin
 end;
 $$ language 'plpgsql';
 -- End Global Types
-
--- GraphQL Entrypoint
-create function graphql(
-    "operationName" text default null,
-    query text default null,
-    variables jsonb default null,
-    extensions jsonb default null
-)
-    returns jsonb
-    language sql
-as $$
-    select graphql.resolve(
-        query := query,
-        variables := coalesce(variables, '{}'),
-        "operationName" := "operationName",
-        extensions := extensions
-    );
-$$;
--- End GraphQL Entrypoint
 
 -- Global Settings
 comment on schema public is '@graphql({"inflect_names": true, "max_rows": 100})';

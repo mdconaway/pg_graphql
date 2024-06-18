@@ -21,13 +21,11 @@ async def grapqhl_request(
     result = await session.execute(
         text(
             f"""
-            select(
-                graphql.resolve(
-                    (:query){'::text' if query else ''},
-                    (:variables){'::jsonb' if variables else ''},
-                    (:opname){'::text' if operationName else ''},
-                    (:extensions){'::jsonb' if extensions else ''}
-                )
+            select graphql.resolve(
+                (:query){'::text' if query else ''},
+                (:variables){'::jsonb' if variables else ''},
+                (:opname){'::text' if operationName else ''},
+                (:extensions){'::jsonb' if extensions else ''}
             );
         """
         ).bindparams(
